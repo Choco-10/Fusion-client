@@ -1,19 +1,8 @@
 import { useEffect, useState } from "react";
-import {
-  Button,
-  Group,
-  Modal,
-  Paper,
-  ScrollArea,
-  Select,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useSelector } from "react-redux";
+import VendorManagementContent from "./components/VendorManagementContent";
+import VendorFormModal from "./components/VendorFormModal";
 import { addVendor, getIssuedWork, getVendors, getWork } from "./api";
 
 function VendorManagementView() {
@@ -90,140 +79,41 @@ function VendorManagementView() {
       setOpened(false);
       await fetchVendors(selectedRequestId);
     } catch {
-      notifications.show({ color: "red", message: "Unable to add vendor." });
+      notifications.show({
+        color: "red",
+        message: workId
+          ? "Unable to add vendor."
+          : "Issue the work order first, then add a vendor.",
+      });
     } finally {
       setIsSaving(false);
     }
   };
 
-  const requestOptions = issuedWorks.map((w) => ({
-    value: String(w.request_id),
-    label: `#${w.request_id} — ${w.name}`,
-  }));
-
   return (
-    <Paper withBorder p="md" radius="md" bg="white">
-      <Group justify="space-between" mb="md">
-        <Title order={4}>Vendor Management</Title>
-        <Button variant="light" onClick={loadIssuedWorks} loading={isLoading}>
-          Refresh
-        </Button>
-      </Group>
-
-      <Stack gap="md">
-        <Select
-          label="Select Work Order (by Request)"
-          placeholder="Choose a request"
-          data={requestOptions}
-          value={selectedRequestId || null}
-          onChange={(value) => fetchVendors(value || "")}
-          searchable
-          clearable
-        />
-
-        {selectedRequestId && (
-          <>
-            <Group justify="space-between">
-              <Title order={6}>Vendors for Request #{selectedRequestId}</Title>
-              <Button size="xs" onClick={openAddVendorModal} disabled={!workId}>
-                Add Vendor
-              </Button>
-            </Group>
-
-            <ScrollArea>
-              <Table striped highlightOnHover>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Vendor ID</Table.Th>
-                    <Table.Th>Name</Table.Th>
-                    <Table.Th>Contact Number</Table.Th>
-                    <Table.Th>Email</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {isFetchingVendors ? (
-                    <Table.Tr>
-                      <Table.Td colSpan={4}>
-                        <Text ta="center" c="dimmed">
-                          Loading…
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ) : vendors.length > 0 ? (
-                    vendors.map((vendor) => (
-                      <Table.Tr key={vendor.vendor_id}>
-                        <Table.Td>{vendor.vendor_id}</Table.Td>
-                        <Table.Td>{vendor.name}</Table.Td>
-                        <Table.Td>{vendor.contact_number || "—"}</Table.Td>
-                        <Table.Td>{vendor.email_address || "—"}</Table.Td>
-                      </Table.Tr>
-                    ))
-                  ) : (
-                    <Table.Tr>
-                      <Table.Td colSpan={4}>
-                        <Text ta="center" c="dimmed">
-                          No vendors added yet for this work order.
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  )}
-                </Table.Tbody>
-              </Table>
-            </ScrollArea>
-          </>
-        )}
-      </Stack>
-
-      <Modal
+    <>
+      <VendorManagementContent
+        issuedWorks={issuedWorks}
+        isLoading={isLoading}
+        selectedRequestId={selectedRequestId}
+        onSelectRequest={fetchVendors}
+        vendors={vendors}
+        isFetchingVendors={isFetchingVendors}
+        workId={workId}
+        onOpenAddVendor={openAddVendorModal}
+        onRefresh={loadIssuedWorks}
+      />
+      <VendorFormModal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Add Vendor"
-        centered
-      >
-        <form onSubmit={handleAddVendor}>
-          <Stack>
-            <TextInput
-              label="Vendor Name"
-              value={newVendor.name}
-              onChange={(e) =>
-                setNewVendor((v) => ({ ...v, name: e.currentTarget.value }))
-              }
-              required
-            />
-            <TextInput
-              label="Contact Number"
-              value={newVendor.contact_number}
-              onChange={(e) =>
-                setNewVendor((v) => ({
-                  ...v,
-                  contact_number: e.currentTarget.value,
-                }))
-              }
-            />
-            <TextInput
-              label="Email Address"
-              type="email"
-              value={newVendor.email_address}
-              onChange={(e) =>
-                setNewVendor((v) => ({
-                  ...v,
-                  email_address: e.currentTarget.value,
-                }))
-              }
-            />
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={isSaving}
-                disabled={!newVendor.name}
-              >
-                Add
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-    </Paper>
+        onSubmit={handleAddVendor}
+        requestId={selectedRequestId}
+        workId={workId}
+        newVendor={newVendor}
+        setNewVendor={setNewVendor}
+        isSaving={isSaving}
+      />
+    </>
   );
 }
 

@@ -1,25 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  FileInput,
-  Group,
-  Modal,
-  Paper,
-  ScrollArea,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-  Title,
-} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useSelector } from "react-redux";
+import DeanProcessingQueueTable from "./components/DeanProcessingQueueTable";
+import DeanProcessingActionModal from "./components/DeanProcessingActionModal";
 import {
+  getApiErrorMessage,
   getCreatedRequests,
   getDesignations,
   handleDeanProcessRequest,
 } from "./api";
+
+function isDirectorOption(value) {
+  const designation = String(value || "").split("|", 1)[0].trim().toLowerCase();
+  return designation === "director";
+}
+
+function isAdminIwdOption(value) {
+  const designation = String(value || "").split("|", 1)[0].trim().toLowerCase();
+  return designation === "admin iwd";
+}
+
+function readField(item, snakeKey, camelKey) {
+  return item?.[snakeKey] ?? item?.[camelKey] ?? null;
+}
+
+function isDeanPendingItem(item) {
+  const admin = Number(item?.iwdAdminApproval ?? item?.processed_by_admin ?? 0);
+  const dean = Number(item?.deanProcessed ?? item?.processed_by_dean ?? 0);
+  const director = Number(item?.directorApproval ?? item?.processed_by_director ?? 0);
+  const budget = readField(item, "estimated_budget", "estimatedBudget");
+  return admin === 1 && dean === 0 && director === 0 && budget != null;
+}
 
 function DeanProcessingQueueView() {
   const role = useSelector((state) => state.user.role);
@@ -29,9 +40,11 @@ function DeanProcessingQueueView() {
   const [isSaving, setIsSaving] = useState(false);
   const [opened, setOpened] = useState(false);
   const [selectedFileId, setSelectedFileId] = useState(null);
+  const [action, setAction] = useState("approve");
   const [designation, setDesignation] = useState("");
   const [remarks, setRemarks] = useState("");
   const [file, setFile] = useState(null);
+  const [allDesignationOptions, setAllDesignationOptions] = useState([]);
 
   const load = async () => {
     setIsLoading(true);
@@ -40,18 +53,18 @@ function DeanProcessingQueueView() {
         getCreatedRequests(role),
         getDesignations(),
       ]);
-      setRows(inboxRows);
+      setRows(inboxRows.filter(isDeanPendingItem));
       const options = (designationsData?.holdsDesignations || []).map(
         (item) => ({
           value: `${item.designation?.name || ""}|${item.username || ""}`,
           label: `${item.designation?.name || "Unknown"} (${item.username || "-"})`,
         }),
       );
-      setDesignationOptions(options);
-    } catch {
+      setAllDesignationOptions(options);
+    } catch (error) {
       notifications.show({
         color: "red",
-        message: "Unable to fetch dean processing queue.",
+        message: getApiErrorMessage(error, "Unable to fetch dean processing queue."),
       });
     } finally {
       setIsLoading(false);
@@ -62,6 +75,15 @@ function DeanProcessingQueueView() {
     load();
   }, [role]);
 
+  useEffect(() => {
+    const filtered =
+      action === "reject"
+        ? allDesignationOptions.filter((item) => isAdminIwdOption(item.value))
+        : allDesignationOptions.filter((item) => isDirectorOption(item.value));
+    setDesignationOptions(filtered);
+    setDesignation("");
+  }, [action, allDesignationOptions]);
+
   const ready = useMemo(
     () => Boolean(selectedFileId && designation),
     [selectedFileId, designation],
@@ -69,6 +91,7 @@ function DeanProcessingQueueView() {
 
   const openActionModal = (fileId) => {
     setSelectedFileId(fileId);
+    setAction("approve");
     setDesignation("");
     setRemarks("");
     setFile(null);
@@ -82,6 +105,7 @@ function DeanProcessingQueueView() {
     try {
       await handleDeanProcessRequest({
         fileid: selectedFileId,
+        action,
         designation,
         remarks,
         file,
@@ -92,10 +116,10 @@ function DeanProcessingQueueView() {
       });
       setOpened(false);
       await load();
-    } catch {
+    } catch (error) {
       notifications.show({
         color: "red",
-        message: "Unable to process request.",
+        message: getApiErrorMessage(error, "Unable to process request."),
       });
     } finally {
       setIsSaving(false);
@@ -103,97 +127,30 @@ function DeanProcessingQueueView() {
   };
 
   return (
-    <Paper withBorder p="md" radius="md" bg="white">
-      <Group justify="space-between" mb="md">
-        <Title order={4}>Dean Processing Queue</Title>
-        <Button variant="light" onClick={load} loading={isLoading}>
-          Refresh
-        </Button>
-      </Group>
-
-      <ScrollArea>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Request ID</Table.Th>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Area</Table.Th>
-              <Table.Th>Created By</Table.Th>
-              <Table.Th>File ID</Table.Th>
-              <Table.Th>Action</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.length > 0 ? (
-              rows.map((item) => (
-                <Table.Tr key={item.file_id}>
-                  <Table.Td>{item.request_id}</Table.Td>
-                  <Table.Td>{item.name}</Table.Td>
-                  <Table.Td>{item.area}</Table.Td>
-                  <Table.Td>{item.requestCreatedBy}</Table.Td>
-                  <Table.Td>{item.file_id}</Table.Td>
-                  <Table.Td>
-                    <Button
-                      size="xs"
-                      onClick={() => openActionModal(item.file_id)}
-                      disabled={!item.file_id}
-                    >
-                      Process &amp; Forward
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))
-            ) : (
-              <Table.Tr>
-                <Table.Td colSpan={6}>
-                  <Text ta="center" c="dimmed">
-                    No requests in dean processing queue.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </ScrollArea>
-
-      <Modal
+    <>
+      <DeanProcessingQueueTable
+        rows={rows}
+        isLoading={isLoading}
+        onRefresh={load}
+        onAction={openActionModal}
+      />
+      <DeanProcessingActionModal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Process & Forward to Director"
-        centered
-      >
-        <form onSubmit={submit}>
-          <Stack>
-            <Select
-              label="Forward To"
-              placeholder="Select designation and user"
-              data={designationOptions}
-              value={designation}
-              onChange={(value) => setDesignation(value || "")}
-              searchable
-              required
-            />
-            <Textarea
-              label="Remarks"
-              value={remarks}
-              onChange={(event) => setRemarks(event.currentTarget.value)}
-              minRows={3}
-            />
-            <FileInput
-              label="Attachment"
-              value={file}
-              onChange={setFile}
-              clearable
-            />
-            <Group justify="flex-end">
-              <Button type="submit" loading={isSaving} disabled={!ready}>
-                Forward
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-    </Paper>
+        onSubmit={submit}
+        action={action}
+        setAction={setAction}
+        designationOptions={designationOptions}
+        designation={designation}
+        setDesignation={setDesignation}
+        remarks={remarks}
+        setRemarks={setRemarks}
+        file={file}
+        setFile={setFile}
+        isSaving={isSaving}
+        isReady={ready}
+      />
+    </>
   );
 }
 

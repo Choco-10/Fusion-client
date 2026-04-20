@@ -5,6 +5,7 @@ import {
   Group,
   Paper,
   Select,
+  Switch,
   Stack,
   TextInput,
   Textarea,
@@ -17,6 +18,7 @@ function RequestForm({ designationOptions, isSubmitting, onSubmit }) {
   const [area, setArea] = useState("");
   const [description, setDescription] = useState("");
   const [designation, setDesignation] = useState("");
+  const [isPriority, setIsPriority] = useState(false);
   const [file, setFile] = useState(null);
 
   const handleSubmit = async (event) => {
@@ -28,6 +30,7 @@ function RequestForm({ designationOptions, isSubmitting, onSubmit }) {
       area,
       description,
       designation,
+      isPriority,
       file,
     });
 
@@ -35,6 +38,7 @@ function RequestForm({ designationOptions, isSubmitting, onSubmit }) {
     setArea("");
     setDescription("");
     setDesignation("");
+    setIsPriority(false);
     setFile(null);
   };
 
@@ -78,6 +82,12 @@ function RequestForm({ designationOptions, isSubmitting, onSubmit }) {
             onChange={(value) => setDesignation(value || "")}
             searchable
             required
+          />
+
+          <Switch
+            label="Mark as Priority Request"
+            checked={isPriority}
+            onChange={(event) => setIsPriority(event.currentTarget.checked)}
           />
 
           <FileInput

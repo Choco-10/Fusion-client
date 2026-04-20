@@ -36,9 +36,68 @@ import {
   addVendorRoute,
   getWorkRoute,
   getVendorsRoute,
+  // NEW SLA & INVENTORY ROUTES
+  slaDashboardRoute,
+  inventoryItemsRoute,
+  inventoryTransactionsRoute,
+  issueMaterialsRoute,
+  receiveMaterialsRoute,
+  feedbackHistoryRoute,
+  submitFeedbackRoute,
+  reopenRequestRoute,
+  slaEscalationsRoute,
 } from "../../routes/instituteWorksRoutes";
 
 const iwdApi = axios.create();
+
+const extractFirstErrorMessage = (value, parentKey = "") => {
+  if (value == null) return "";
+  if (typeof value === "string") {
+    return parentKey ? `${parentKey}: ${value}` : value;
+  }
+  if (Array.isArray(value)) {
+    return value.reduce((message, item) => {
+      if (message) return message;
+      return extractFirstErrorMessage(item, parentKey);
+    }, "");
+  }
+  if (typeof value === "object") {
+    return Object.entries(value).reduce((message, [key, nestedValue]) => {
+      if (message) return message;
+      const nextKey =
+        key === "non_field_errors" || key === "detail" ? parentKey : key;
+      return extractFirstErrorMessage(nestedValue, nextKey);
+    }, "");
+  }
+  return "";
+};
+
+export const getApiErrorMessage = (error, fallback = "Request failed.") => {
+  if (!axios.isAxiosError(error)) return fallback;
+
+  const data = error.response?.data;
+  const status = error.response?.status;
+
+  if (status === 403 && (!data || typeof data === "string")) {
+    return "You are not authorized for this action.";
+  }
+
+  if (typeof data === "string") {
+    return data;
+  }
+
+  if (data && typeof data === "object") {
+    if (typeof data.error === "string" && data.error.trim()) return data.error;
+    if (typeof data.message === "string" && data.message.trim()) {
+      return data.message;
+    }
+
+    const extracted = extractFirstErrorMessage(data);
+    if (extracted) return extracted;
+  }
+
+  return error.message || fallback;
+};
 
 iwdApi.interceptors.request.use((config) => {
   const token = localStorage.getItem("authToken");
@@ -59,6 +118,7 @@ export const createRequest = async ({
   description,
   designation,
   role,
+  isPriority,
   file,
 }) => {
   const formData = new FormData();
@@ -67,6 +127,7 @@ export const createRequest = async ({
   formData.append("description", description);
   formData.append("designation", designation);
   formData.append("role", role || "");
+  formData.append("isPriority", isPriority ? "true" : "false");
   if (file) {
     formData.append("file", file);
   }
@@ -90,12 +151,16 @@ export const getRequestsStatus = async (role) => {
   const { data } = await iwdApi.get(requestsStatusRoute, {
     params: { role },
   });
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.obj)) return data.obj;
+  return [];
 };
 
 export const getDirectorApprovedRequests = async () => {
   const { data } = await iwdApi.get(directorApprovedRequestsRoute);
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.obj)) return data.obj;
+  return [];
 };
 
 export const issueWorkOrder = async ({
@@ -124,7 +189,9 @@ export const getWorkUnderProgress = async (role) => {
   const { data } = await iwdApi.get(workUnderProgressRoute, {
     params: { role },
   });
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.obj)) return data.obj;
+  return [];
 };
 
 export const markWorkCompleted = async (id) => {
@@ -171,7 +238,9 @@ export const submitDirectorApproval = async ({
   const formData = new FormData();
   formData.append("fileid", fileid);
   formData.append("action", action);
-  formData.append("designation", designation);
+  if (designation) {
+    formData.append("designation", designation);
+  }
   formData.append("remarks", remarks || "");
   if (file) {
     formData.append("file", file);
@@ -200,7 +269,9 @@ export const submitAuditDocument = async ({
 }) => {
   const formData = new FormData();
   formData.append("fileid", fileid);
-  formData.append("designation", designation);
+  if (designation) {
+    formData.append("designation", designation);
+  }
   formData.append("remarks", remarks || "");
   if (attachment) {
     formData.append("attachment", attachment);
@@ -302,15 +373,21 @@ export const getItems = async (proposal_id) => {
   return data || { itemsList: [], proposal: null };
 };
 
-export const getIssuedWork = async (role) => {
+export const getIssuedWork = async (role, filters = {}) => {
   const { data } = await iwdApi.get(issuedWorkRoute, {
-    params: { role },
+    params: { role, ...filters },
   });
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.obj)) return data.obj;
+  return [];
 };
 
-export const markBillGenerated = async (id) => {
-  const { data } = await iwdApi.post(handleBillGeneratedRequestsRoute, { id });
+export const markBillGenerated = async ({ id, vendor_id, bill_items }) => {
+  const payload = { id };
+  if (vendor_id) payload.vendor_id = vendor_id;
+  if (bill_items) payload.bill_items = JSON.stringify(bill_items);
+
+  const { data } = await iwdApi.post(handleBillGeneratedRequestsRoute, payload);
   return data;
 };
 
@@ -348,6 +425,23 @@ export const processBill = async ({
 export const getBillPdfUrl = (request_id) =>
   `${generateBillPdfRoute}?request_id=${request_id}`;
 
+export const downloadBillPdf = async (request_id) => {
+  const response = await iwdApi.get(generateBillPdfRoute, {
+    params: { request_id },
+    responseType: "blob",
+  });
+
+  const blob = new Blob([response.data], { type: "application/pdf" });
+  const objectUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = `Request_${request_id}_bill.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(objectUrl);
+};
+
 export const getViewFile = async (file_id) => {
   const { data } = await iwdApi.get(viewFileRoute, { params: { file_id } });
   return data || { file: null, tracks: [] };
@@ -372,12 +466,14 @@ export const forwardRequest = async ({
 
 export const handleDeanProcessRequest = async ({
   fileid,
+  action,
   designation,
   remarks,
   file,
 }) => {
   const formData = new FormData();
   formData.append("fileid", fileid);
+  formData.append("action", action || "approve");
   formData.append("designation", designation);
   formData.append("remarks", remarks || "");
   if (file) formData.append("file", file);
@@ -424,7 +520,9 @@ export const handleUpdateRequest = async ({
 
 export const getRequestsInProgress = async () => {
   const { data } = await iwdApi.get(requestsInProgressRoute);
-  return Array.isArray(data) ? data : [];
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.obj)) return data.obj;
+  return [];
 };
 
 export const addVendor = async ({
@@ -450,4 +548,133 @@ export const getWork = async (request_id) => {
 export const getVendors = async (work) => {
   const { data } = await iwdApi.get(getVendorsRoute, { params: { work } });
   return Array.isArray(data) ? data : [];
+};
+// ===== NEW SLA & INVENTORY API FUNCTIONS (UC-29, UC-30, UC-31) =====
+
+export const getSLADashboard = async () => {
+  const { data } = await iwdApi.get(slaDashboardRoute);
+  return (
+    data || {
+      total_active: 0,
+      pending_count: 0,
+      due_soon_count: 0,
+      overdue_count: 0,
+      overdue_requests: [],
+      escalation_count: 0,
+      priority_count: 0,
+    }
+  );
+};
+
+export const getInventoryItems = async (
+  page = 1,
+  page_size = 20,
+  filters = {},
+) => {
+  const params = { page, page_size, ...filters };
+  const { data } = await iwdApi.get(inventoryItemsRoute, { params });
+  return {
+    items: Array.isArray(data?.items) ? data.items : [],
+    pagination: data?.pagination || {
+      current_page: 1,
+      total_pages: 1,
+      total_count: 0,
+      page_size: 20,
+    },
+  };
+};
+
+export const getInventoryTransactions = async (
+  page = 1,
+  page_size = 20,
+  filters = {},
+) => {
+  const params = { page, page_size, ...filters };
+  const { data } = await iwdApi.get(inventoryTransactionsRoute, { params });
+  return {
+    items: Array.isArray(data?.obj) ? data.obj : [],
+    pagination: data?.pagination || {
+      current_page: 1,
+      total_pages: 1,
+      total_count: 0,
+      page_size: 20,
+    },
+  };
+};
+
+export const issueMaterials = async (
+  item_id,
+  quantity,
+  request_id = null,
+  remarks = "",
+) => {
+  const { data } = await iwdApi.post(issueMaterialsRoute, {
+    item_id,
+    quantity,
+    request_id,
+    remarks,
+  });
+  return data;
+};
+
+export const receiveMaterials = async (item_id, quantity, remarks = "") => {
+  const { data } = await iwdApi.post(receiveMaterialsRoute, {
+    item_id,
+    quantity,
+    remarks,
+  });
+  return data;
+};
+
+export const submitFeedback = async (request_id, rating, comments = "") => {
+  const { data } = await iwdApi.post(submitFeedbackRoute, {
+    request_id,
+    rating,
+    comments,
+  });
+  return data;
+};
+
+export const reopenRequest = async (request_id, reason = "") => {
+  const { data } = await iwdApi.post(reopenRequestRoute, {
+    request_id,
+    reason,
+  });
+  return data;
+};
+
+export const getFeedbackHistory = async (
+  page = 1,
+  page_size = 20,
+  filters = {},
+) => {
+  const params = { page, page_size, ...filters };
+  const { data } = await iwdApi.get(feedbackHistoryRoute, { params });
+  return {
+    items: Array.isArray(data?.obj) ? data.obj : [],
+    pagination: data?.pagination || {
+      current_page: 1,
+      total_pages: 1,
+      total_count: 0,
+      page_size: 20,
+    },
+  };
+};
+
+export const getSLAEscalations = async (
+  page = 1,
+  page_size = 20,
+  filters = {},
+) => {
+  const params = { page, page_size, ...filters };
+  const { data } = await iwdApi.get(slaEscalationsRoute, { params });
+  return {
+    items: Array.isArray(data?.obj) ? data.obj : [],
+    pagination: data?.pagination || {
+      current_page: 1,
+      total_pages: 1,
+      total_count: 0,
+      page_size: 20,
+    },
+  };
 };

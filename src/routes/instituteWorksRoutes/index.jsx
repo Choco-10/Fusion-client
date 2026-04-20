@@ -38,3 +38,14 @@ export const requestsInProgressRoute = `${iwdBaseRoute}/requests-in-progress/`;
 export const addVendorRoute = `${iwdBaseRoute}/add-vendor/`;
 export const getWorkRoute = `${iwdBaseRoute}/get-work/`;
 export const getVendorsRoute = `${iwdBaseRoute}/get-vendors/`;
+
+// ===== NEW SLA & INVENTORY ENDPOINTS (UC-29, UC-30, UC-31) =====
+export const slaDashboardRoute = `${iwdBaseRoute}/sla-dashboard/`;
+export const inventoryItemsRoute = `${iwdBaseRoute}/inventory-items/`;
+export const inventoryTransactionsRoute = `${iwdBaseRoute}/inventory-transactions/`;
+export const issueMaterialsRoute = `${iwdBaseRoute}/issue-materials/`;
+export const receiveMaterialsRoute = `${iwdBaseRoute}/receive-materials/`;
+export const feedbackHistoryRoute = `${iwdBaseRoute}/feedback-history/`;
+export const submitFeedbackRoute = `${iwdBaseRoute}/submit-feedback/`;
+export const reopenRequestRoute = `${iwdBaseRoute}/reopen-request/`;
+export const slaEscalationsRoute = `${iwdBaseRoute}/sla-escalations/`;

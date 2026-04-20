@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 import { useSelector } from "react-redux";
-import axios from "axios";
+import InfoNotice from "./components/InfoNotice";
 import RequestForm from "./components/RequestForm";
-import { createRequest, getDesignations } from "./api";
+import { createRequest, getApiErrorMessage, getDesignations } from "./api";
 
 function CreateRequestView() {
   const role = useSelector((state) => state.user.role);
@@ -20,7 +19,10 @@ function CreateRequestView() {
       try {
         const response = await getDesignations();
         const designationData = response?.holdsDesignations || [];
-        const options = designationData.map((item) => ({
+        const adminIwdReceivers = designationData.filter(
+          (item) => item?.designation?.name === "Admin IWD",
+        );
+        const options = adminIwdReceivers.map((item) => ({
           value: `${item.designation?.name || ""}|${item.username || ""}`,
           label: `${item.designation?.name || "Unknown"} (${item.username || "-"})`,
         }));
@@ -38,10 +40,10 @@ function CreateRequestView() {
               : "You do not hold any designation that can create IWD requests.",
           );
         }
-      } catch {
+      } catch (error) {
         notifications.show({
           color: "red",
-          message: "Unable to fetch designation options.",
+          message: getApiErrorMessage(error, "Unable to fetch designation options."),
         });
       } finally {
         setIsLoadingDesignations(false);
@@ -55,7 +57,7 @@ function CreateRequestView() {
     () =>
       isLoadingDesignations
         ? "Loading designations..."
-        : "No designation options available.",
+        : "No Admin IWD recipients available.",
     [isLoadingDesignations],
   );
 
@@ -68,9 +70,7 @@ function CreateRequestView() {
         message: "IWD request created successfully.",
       });
     } catch (error) {
-      const message = axios.isAxiosError(error)
-        ? error.response?.data?.error || "Failed to create request."
-        : "Failed to create request.";
+      const message = getApiErrorMessage(error, "Failed to create request.");
       notifications.show({
         color: "red",
         message,
@@ -82,18 +82,14 @@ function CreateRequestView() {
 
   if (!isLoadingDesignations && !canCreateRequest) {
     return (
-      <Text c="dimmed" mt="md">
-        {accessMessage || "You are not allowed to create IWD requests."}
-      </Text>
+      <InfoNotice
+        message={accessMessage || "You are not allowed to create IWD requests."}
+      />
     );
   }
 
   if (designationOptions.length === 0) {
-    return (
-      <Text c="dimmed" mt="md">
-        {emptyNotice}
-      </Text>
-    );
+    return <InfoNotice message={emptyNotice} />;
   }
 
   return (

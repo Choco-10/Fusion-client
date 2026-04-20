@@ -1,25 +1,30 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Group,
-  Modal,
-  Paper,
-  ScrollArea,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { DateInput } from "@mantine/dates";
 import { notifications } from "@mantine/notifications";
-import { getDirectorApprovedRequests, issueWorkOrder } from "./api";
+import DirectorApprovedTable from "./components/DirectorApprovedTable";
+import IssueWorkOrderModal from "./components/IssueWorkOrderModal";
+import {
+  getApiErrorMessage,
+  getDirectorApprovedRequests,
+  issueWorkOrder,
+} from "./api";
 
 function toIsoDate(value) {
   if (!value) return "";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return "";
-  return d.toISOString().slice(0, 10);
+  const year = d.getFullYear();
+  const month = `${d.getMonth() + 1}`.padStart(2, "0");
+  const day = `${d.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isCompletionDateValid(startDate, completionDate) {
+  if (!startDate || !completionDate) return true;
+  const start = new Date(startDate);
+  const end = new Date(completionDate);
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  return end >= start;
 }
 
 const initialForm = {
@@ -42,10 +47,10 @@ function DirectorApprovedView() {
     try {
       const data = await getDirectorApprovedRequests();
       setRequests(data);
-    } catch {
+    } catch (error) {
       notifications.show({
         color: "red",
-        message: "Unable to fetch director-approved requests.",
+        message: getApiErrorMessage(error, "Unable to fetch director-approved requests."),
       });
     } finally {
       setIsLoading(false);
@@ -60,7 +65,7 @@ function DirectorApprovedView() {
     () =>
       Boolean(
         form.request_id && form.name && form.alloted_time && form.start_date,
-      ),
+      ) && isCompletionDateValid(form.start_date, form.completion_date),
     [form],
   );
 
@@ -83,8 +88,8 @@ function DirectorApprovedView() {
     try {
       await issueWorkOrder({
         request_id: form.request_id,
-        name: form.name,
-        alloted_time: form.alloted_time,
+        name: (form.name || "").trim(),
+        alloted_time: (form.alloted_time || "").trim(),
         start_date: toIsoDate(form.start_date),
         completion_date: toIsoDate(form.completion_date),
       });
@@ -95,10 +100,10 @@ function DirectorApprovedView() {
       setOpened(false);
       setForm(initialForm);
       await load();
-    } catch {
+    } catch (error) {
       notifications.show({
         color: "red",
-        message: "Unable to issue work order.",
+        message: getApiErrorMessage(error, "Unable to issue work order."),
       });
     } finally {
       setIsSaving(false);
@@ -106,119 +111,23 @@ function DirectorApprovedView() {
   };
 
   return (
-    <Paper withBorder p="md" radius="md" bg="white">
-      <Group justify="space-between" mb="md">
-        <Title order={4}>Director Approved Requests</Title>
-        <Button variant="light" onClick={load} loading={isLoading}>
-          Refresh
-        </Button>
-      </Group>
-
-      <ScrollArea>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>ID</Table.Th>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Area</Table.Th>
-              <Table.Th>Created By</Table.Th>
-              <Table.Th>Action</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {requests.length > 0 ? (
-              requests.map((item) => (
-                <Table.Tr key={item.id}>
-                  <Table.Td>{item.id}</Table.Td>
-                  <Table.Td>{item.name}</Table.Td>
-                  <Table.Td>{item.area}</Table.Td>
-                  <Table.Td>{item.requestCreatedBy}</Table.Td>
-                  <Table.Td>
-                    <Button size="xs" onClick={() => openForRequest(item)}>
-                      Issue Work Order
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))
-            ) : (
-              <Table.Tr>
-                <Table.Td colSpan={5}>
-                  <Text ta="center" c="dimmed">
-                    No requests are currently approved by director.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </ScrollArea>
-
-      <Modal
+    <>
+      <DirectorApprovedTable
+        requests={requests}
+        isLoading={isLoading}
+        onRefresh={load}
+        onIssue={openForRequest}
+      />
+      <IssueWorkOrderModal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="Issue Work Order"
-        centered
-      >
-        <form onSubmit={submit}>
-          <Stack>
-            <TextInput
-              label="Request ID"
-              value={String(form.request_id || "")}
-              readOnly
-            />
-            <TextInput
-              label="Agency / Work Name"
-              value={form.name}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  name: event.currentTarget.value,
-                }))
-              }
-              required
-            />
-            <TextInput
-              label="Allotted Time"
-              placeholder="e.g. 45 days"
-              value={form.alloted_time}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  alloted_time: event.currentTarget.value,
-                }))
-              }
-              required
-            />
-            <DateInput
-              label="Start Date"
-              value={form.start_date}
-              onChange={(value) =>
-                setForm((prev) => ({ ...prev, start_date: value }))
-              }
-              valueFormat="YYYY-MM-DD"
-              required
-            />
-            <DateInput
-              label="Expected Completion Date"
-              value={form.completion_date}
-              onChange={(value) =>
-                setForm((prev) => ({ ...prev, completion_date: value }))
-              }
-              valueFormat="YYYY-MM-DD"
-            />
-            <Group justify="flex-end">
-              <Button
-                type="submit"
-                loading={isSaving}
-                disabled={!readyToSubmit}
-              >
-                Submit
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-    </Paper>
+        onSubmit={submit}
+        form={form}
+        setForm={setForm}
+        isSaving={isSaving}
+        isReady={readyToSubmit}
+      />
+    </>
   );
 }
 

@@ -1,29 +1,38 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  FileInput,
-  Group,
-  Modal,
-  Paper,
-  ScrollArea,
-  Select,
-  Stack,
-  Table,
-  Text,
-  Textarea,
-  Title,
-} from "@mantine/core";
 import { notifications } from "@mantine/notifications";
+import AdminApprovalQueueTable from "./components/AdminApprovalQueueTable";
+import AdminApprovalActionModal from "./components/AdminApprovalActionModal";
 import {
+  getApiErrorMessage,
   getDesignations,
   getEngineerProcessedRequests,
   submitAdminApproval,
 } from "./api";
 
-const actionOptions = [
-  { value: "approve", label: "Approve" },
-  { value: "reject", label: "Reject" },
+const DEAN_HOD_ROLES = [
+  "dean (p&d)",
+  "deanpnd",
+  "dean_s",
+  "dean academic",
+  "dean (r&d)",
+  "dean_rspc",
+  "hod (cse)",
+  "hod (design)",
+  "hod (ece)",
+  "hod (me)",
+  "hod (ns)",
+  "hod (liberal arts)",
+  "hod",
 ];
+
+function isDeanHodOption(value) {
+  const designation = String(value || "").split("|", 1)[0].trim().toLowerCase();
+  return DEAN_HOD_ROLES.some((role) => designation.includes(role));
+}
+
+function hasProposal(row) {
+  return row?.estimated_budget != null || row?.estimatedBudget != null;
+}
 
 function AdminApprovalQueueView() {
   const [rows, setRows] = useState([]);
@@ -44,7 +53,7 @@ function AdminApprovalQueueView() {
         getEngineerProcessedRequests(),
         getDesignations(),
       ]);
-      setRows(queueRows);
+      setRows(queueRows.filter(hasProposal));
 
       const options = (designationsData?.holdsDesignations || []).map(
         (item) => ({
@@ -52,11 +61,11 @@ function AdminApprovalQueueView() {
           label: `${item.designation?.name || "Unknown"} (${item.username || "-"})`,
         }),
       );
-      setDesignationOptions(options);
-    } catch {
+      setDesignationOptions(options.filter((item) => isDeanHodOption(item.value)));
+    } catch (error) {
       notifications.show({
         color: "red",
-        message: "Unable to fetch admin queue.",
+        message: getApiErrorMessage(error, "Unable to fetch admin queue."),
       });
     } finally {
       setIsLoading(false);
@@ -100,10 +109,10 @@ function AdminApprovalQueueView() {
       });
       setOpened(false);
       await load();
-    } catch {
+    } catch (error) {
       notifications.show({
         color: "red",
-        message: "Unable to submit admin action.",
+        message: getApiErrorMessage(error, "Unable to submit admin action."),
       });
     } finally {
       setIsSaving(false);
@@ -111,103 +120,30 @@ function AdminApprovalQueueView() {
   };
 
   return (
-    <Paper withBorder p="md" radius="md" bg="white">
-      <Group justify="space-between" mb="md">
-        <Title order={4}>Engineer Processed Queue</Title>
-        <Button variant="light" onClick={load} loading={isLoading}>
-          Refresh
-        </Button>
-      </Group>
-
-      <ScrollArea>
-        <Table striped highlightOnHover>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Request ID</Table.Th>
-              <Table.Th>Name</Table.Th>
-              <Table.Th>Area</Table.Th>
-              <Table.Th>Created By</Table.Th>
-              <Table.Th>File ID</Table.Th>
-              <Table.Th>Action</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {rows.length > 0 ? (
-              rows.map((item) => (
-                <Table.Tr key={item.file_id}>
-                  <Table.Td>{item.id}</Table.Td>
-                  <Table.Td>{item.name}</Table.Td>
-                  <Table.Td>{item.area}</Table.Td>
-                  <Table.Td>{item.requestCreatedBy}</Table.Td>
-                  <Table.Td>{item.file_id}</Table.Td>
-                  <Table.Td>
-                    <Button
-                      size="xs"
-                      onClick={() => openActionModal(item.file_id)}
-                    >
-                      Approve / Reject
-                    </Button>
-                  </Table.Td>
-                </Table.Tr>
-              ))
-            ) : (
-              <Table.Tr>
-                <Table.Td colSpan={6}>
-                  <Text ta="center" c="dimmed">
-                    No engineer-processed requests available.
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            )}
-          </Table.Tbody>
-        </Table>
-      </ScrollArea>
-
-      <Modal
+    <>
+      <AdminApprovalQueueTable
+        rows={rows}
+        isLoading={isLoading}
+        onRefresh={load}
+        onAction={openActionModal}
+      />
+      <AdminApprovalActionModal
         opened={opened}
         onClose={() => setOpened(false)}
-        title="IWD Admin Decision"
-        centered
-      >
-        <form onSubmit={submit}>
-          <Stack>
-            <Select
-              label="Action"
-              data={actionOptions}
-              value={action}
-              onChange={(value) => setAction(value || "approve")}
-              required
-            />
-            <Select
-              label="Forward To"
-              placeholder="Select designation and user"
-              data={designationOptions}
-              value={designation}
-              onChange={(value) => setDesignation(value || "")}
-              searchable
-              required
-            />
-            <Textarea
-              label="Remarks"
-              value={remarks}
-              onChange={(event) => setRemarks(event.currentTarget.value)}
-              minRows={3}
-            />
-            <FileInput
-              label="Attachment"
-              value={file}
-              onChange={setFile}
-              clearable
-            />
-            <Group justify="flex-end">
-              <Button type="submit" loading={isSaving} disabled={!ready}>
-                Submit
-              </Button>
-            </Group>
-          </Stack>
-        </form>
-      </Modal>
-    </Paper>
+        onSubmit={submit}
+        action={action}
+        setAction={setAction}
+        designationOptions={designationOptions}
+        designation={designation}
+        setDesignation={setDesignation}
+        remarks={remarks}
+        setRemarks={setRemarks}
+        file={file}
+        setFile={setFile}
+        isSaving={isSaving}
+        isReady={ready}
+      />
+    </>
   );
 }
 
