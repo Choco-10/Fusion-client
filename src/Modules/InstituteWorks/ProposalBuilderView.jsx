@@ -34,6 +34,7 @@ function ProposalBuilderView() {
   const [isSaving, setIsSaving] = useState(false);
   const [opened, setOpened] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState(null);
+  const [selectedRequestPriority, setSelectedRequestPriority] = useState(false);
   const [designation, setDesignation] = useState("");
   const [supportingDocument, setSupportingDocument] = useState(null);
   const [items, setItems] = useState([newItemRow()]);
@@ -106,6 +107,7 @@ function ProposalBuilderView() {
     }
 
     setSelectedRequestId(row.request_id);
+    setSelectedRequestPriority(Boolean(row?.is_priority ?? row?.isPriority));
     setDesignation("");
     setSupportingDocument(null);
     setItems([newItemRow()]);
@@ -137,6 +139,7 @@ function ProposalBuilderView() {
         designation,
         supporting_documents: supportingDocument,
         items,
+        isPriority: selectedRequestPriority,
       });
       notifications.show({
         color: "green",

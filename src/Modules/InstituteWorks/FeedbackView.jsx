@@ -176,10 +176,9 @@ function FeedbackView() {
                     value={rating}
                     onChange={setRating}
                     size="lg"
-                    fractions={0}
+                    fractions={1}
                     count={5}
-                    emptySymbol={<span style={{ fontSize: 26, lineHeight: 1, color: "#9ca3af" }}>☆</span>}
-                    fullSymbol={<span style={{ fontSize: 26, lineHeight: 1, color: "#f59f00" }}>★</span>}
+                    color="yellow"
                   />
                   <div>
                     {rating > 0 && (
@@ -322,9 +321,12 @@ function FeedbackView() {
                     </Table.Td>
                     <Table.Td>#{feedback.request}</Table.Td>
                     <Table.Td>
-                      <Badge color={feedback.rating >= 4 ? "green" : feedback.rating >= 3 ? "yellow" : "red"} variant="light">
-                        {feedback.rating}/5
-                      </Badge>
+                      <Stack gap={4}>
+                        <Badge color={feedback.rating >= 4 ? "green" : feedback.rating >= 3 ? "yellow" : "red"} variant="light">
+                          {feedback.rating}/5
+                        </Badge>
+                        <Rating value={Number(feedback.rating || 0)} readOnly size="sm" fractions={1} color="yellow" />
+                      </Stack>
                     </Table.Td>
                     <Table.Td>
                       <Badge color={feedback.reopened ? "orange" : "gray"} variant="light">

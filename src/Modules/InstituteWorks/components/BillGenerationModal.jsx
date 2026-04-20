@@ -41,7 +41,7 @@ function BillGenerationModal({
           <Stack gap="sm">
             {billItems.map((item, index) => (
               <Stack
-                key={`${index}-${item.name || "item"}`}
+                key={`bill-item-${index}`}
                 gap="xs"
                 p="xs"
                 style={{ border: "1px solid var(--mantine-color-gray-3)", borderRadius: 8 }}

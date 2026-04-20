@@ -6,6 +6,7 @@ import {
   createProposalRoute,
   createRequestRoute,
   createdRequestsRoute,
+  deanPendingRequestsRoute,
   deanProcessedRequestsRoute,
   directorApprovedRequestsRoute,
   editBudgetRoute,
@@ -228,6 +229,13 @@ export const getDeanProcessedRequests = async (role) => {
   return Array.isArray(data) ? data : [];
 };
 
+export const getDeanPendingRequests = async (role) => {
+  const { data } = await iwdApi.get(deanPendingRequestsRoute, {
+    params: { role },
+  });
+  return Array.isArray(data) ? data : [];
+};
+
 export const submitDirectorApproval = async ({
   fileid,
   action,
@@ -329,10 +337,12 @@ export const createProposal = async ({
   designation,
   supporting_documents,
   items,
+  isPriority,
 }) => {
   const formData = new FormData();
   formData.append("id", id);
   formData.append("designation", designation);
+  formData.append("isPriority", isPriority ? "true" : "false");
   if (supporting_documents) {
     formData.append("supporting_documents", supporting_documents);
   }

@@ -13,6 +13,7 @@ export const workCompletedRoute = `${iwdBaseRoute}/work-completed/`;
 export const viewBudgetRoute = `${iwdBaseRoute}/view-budget/`;
 export const addBudgetRoute = `${iwdBaseRoute}/add-budget/`;
 export const editBudgetRoute = `${iwdBaseRoute}/edit-budget/`;
+export const deanPendingRequestsRoute = `${iwdBaseRoute}/dean-pending-requests/`;
 export const deanProcessedRequestsRoute = `${iwdBaseRoute}/dean-processed-requests/`;
 export const handleDirectorApprovalRoute = `${iwdBaseRoute}/handle-director-approval/`;
 export const auditDocumentViewRoute = `${iwdBaseRoute}/audit-document-view/`;

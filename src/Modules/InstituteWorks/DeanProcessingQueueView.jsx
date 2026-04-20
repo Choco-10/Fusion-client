@@ -5,7 +5,7 @@ import DeanProcessingQueueTable from "./components/DeanProcessingQueueTable";
 import DeanProcessingActionModal from "./components/DeanProcessingActionModal";
 import {
   getApiErrorMessage,
-  getCreatedRequests,
+  getDeanPendingRequests,
   getDesignations,
   handleDeanProcessRequest,
 } from "./api";
@@ -50,7 +50,7 @@ function DeanProcessingQueueView() {
     setIsLoading(true);
     try {
       const [inboxRows, designationsData] = await Promise.all([
-        getCreatedRequests(role),
+        getDeanPendingRequests(role),
         getDesignations(),
       ]);
       setRows(inboxRows.filter(isDeanPendingItem));

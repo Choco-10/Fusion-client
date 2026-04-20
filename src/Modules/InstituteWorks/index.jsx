@@ -82,6 +82,13 @@ function isDeanProcessingRole(normalizedRole) {
   return DEAN_HOD_ROLES.some((role) => normalizedRole.includes(role));
 }
 
+function isVendorManagementRole(normalizedRole) {
+  return (
+    normalizedRole.includes("accounts admin") ||
+    normalizedRole.includes("admin iwd")
+  );
+}
+
 function canCreateAndTrackRequests(normalizedRole) {
   return (
     WORKFLOW_ROLES.some((role) => normalizedRole.includes(role)) ||
@@ -162,7 +169,7 @@ function InstituteWorks() {
       {
         title: "Vendor Management",
         component: VendorManagementView,
-        visible: isEngineerRole(normalizedRole),
+        visible: isVendorManagementRole(normalizedRole),
       },
       {
         title: "Budget Management",
